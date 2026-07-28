@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
   final NeoThemeData theme;
-  final Function(String email, String password) onLoginSuccess;
+  final Function(Map<String, dynamic> user) onLoginSuccess;
 
   const LoginScreen({
     super.key,
@@ -16,8 +17,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _emailController = TextEditingController(text: 'yusron@dev.com');
+  final _passwordController = TextEditingController(text: 'password');
   bool _loading = false;
 
   void _handleLogin() async {
@@ -32,11 +33,22 @@ class _LoginScreenState extends State<LoginScreen> {
     }
 
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 600));
+
+    final user = await ApiService.login(email, pass);
+
     setState(() => _loading = false);
 
     if (mounted) {
-      widget.onLoginSuccess(email, pass);
+      if (user != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Selamat datang, ${user['name']}! (${user['role'] ?? 'User'})')),
+        );
+        widget.onLoginSuccess(user);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal Login: Email/Password salah atau server tidak terhubung.')),
+        );
+      }
     }
   }
 
@@ -91,7 +103,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'LOGIN AKUN ADMIN',
+                      'LOGIN AKUN PORTOFOLIO',
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 15,
@@ -101,7 +113,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Masukan kredensial admin Zaki untuk membuka fitur Post Project & CMS Control.',
+                      'Masukan akun terdaftar dari website (Admin atau User). Hak akses akan otomatis diselaraskan.',
                       style: TextStyle(
                         fontSize: 11,
                         color: t.primary.withValues(alpha: 0.7),
@@ -112,7 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                     // Email Field
                     Text(
-                      'EMAIL ADMIN',
+                      'EMAIL AKUN',
                       style: TextStyle(
                         fontWeight: FontWeight.w900,
                         fontSize: 11,
@@ -184,7 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: _loading
                             ? const CircularProgressIndicator(color: Colors.white)
                             : const Text(
-                                'LOGIN KE NAOO ADMIN →',
+                                'MASUK KE APLIKASI →',
                                 style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
                               ),
                       ),

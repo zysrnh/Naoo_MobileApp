@@ -3,77 +3,126 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiConfig {
-  // IP Laptop kamu di Wi-Fi agar HP fisik Android (2312FPCA6G) bisa tersambung 100% ke backend Laravel
+  // Tempelkan URL Cloudflare Tunnel kamu di sini jika mau pakai jaringan seluler 4G/5G dari luar rumah:
+  static String cloudflareUrl = ''; 
+
   static String baseUrl = 'http://192.168.101.70:8000';
+
+  static List<String> get fallbackUrls => [
+    if (cloudflareUrl.isNotEmpty) cloudflareUrl,
+    'http://192.168.101.70:8000',
+    'http://localhost:8000',
+    'http://10.0.2.2:8000',
+  ];
 }
 
 class ApiService {
-  static Future<Map<String, dynamic>> fetchDashboardStats() async {
-    try {
-      final res = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/visitors/stats?days=30'),
-        headers: {'Accept': 'application/json'},
-      );
-      if (res.statusCode == 200) {
-        return json.decode(res.body);
+  static Future<Map<String, dynamic>?> login(String email, String password) async {
+    for (final host in ApiConfig.fallbackUrls) {
+      try {
+        final res = await http.post(
+          Uri.parse('$host/api/mobile/login'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: json.encode({'email': email, 'password': password}),
+        ).timeout(const Duration(seconds: 4));
+
+        if (res.statusCode == 200) {
+          ApiConfig.baseUrl = host; // Lock active working host!
+          final data = json.decode(res.body);
+          if (data['ok'] == true) {
+            return data['user'];
+          }
+        }
+      } catch (e) {
+        debugPrint('Login attempt failed on $host: $e');
       }
-    } catch (e) {
-      debugPrint('Error fetch stats: $e');
+    }
+    return null;
+  }
+
+  static Future<Map<String, dynamic>> fetchDashboardStats() async {
+    for (final host in [ApiConfig.baseUrl, ...ApiConfig.fallbackUrls]) {
+      try {
+        final res = await http.get(
+          Uri.parse('$host/api/visitors/stats?days=30'),
+          headers: {'Accept': 'application/json'},
+        ).timeout(const Duration(seconds: 4));
+        if (res.statusCode == 200) {
+          ApiConfig.baseUrl = host;
+          return json.decode(res.body);
+        }
+      } catch (e) {
+        debugPrint('Error fetch stats on $host: $e');
+      }
     }
     return {'total_visitors': 0, 'total_pageviews': 0};
   }
 
   static Future<List<dynamic>> fetchProjects() async {
-    try {
-      final res = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/projects'),
-        headers: {'Accept': 'application/json'},
-      );
-      if (res.statusCode == 200) {
-        final data = json.decode(res.body);
-        if (data is List) return data;
-        if (data is Map && data.containsKey('data')) return data['data'];
+    for (final host in [ApiConfig.baseUrl, ...ApiConfig.fallbackUrls]) {
+      try {
+        final res = await http.get(
+          Uri.parse('$host/api/projects'),
+          headers: {'Accept': 'application/json'},
+        ).timeout(const Duration(seconds: 4));
+        if (res.statusCode == 200) {
+          ApiConfig.baseUrl = host;
+          final data = json.decode(res.body);
+          if (data is List) return data;
+          if (data is Map && data.containsKey('data')) return data['data'];
+        }
+      } catch (e) {
+        debugPrint('Error fetch projects on $host: $e');
       }
-    } catch (e) {
-      debugPrint('Error fetch projects: $e');
     }
     return [];
   }
 
   static Future<bool> createProject(Map<String, dynamic> data) async {
-    try {
-      final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/admin/projects'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: json.encode(data),
-      );
-      return res.statusCode == 200 || res.statusCode == 201;
-    } catch (e) {
-      debugPrint('Error create project: $e');
-      return false;
+    for (final host in [ApiConfig.baseUrl, ...ApiConfig.fallbackUrls]) {
+      try {
+        final res = await http.post(
+          Uri.parse('$host/api/admin/projects'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: json.encode(data),
+        ).timeout(const Duration(seconds: 5));
+        if (res.statusCode == 200 || res.statusCode == 201) {
+          ApiConfig.baseUrl = host;
+          return true;
+        }
+      } catch (e) {
+        debugPrint('Error create project on $host: $e');
+      }
     }
+    return false;
   }
 
   static Future<String> askAi(String message) async {
-    try {
-      final res = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/chatbot'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: json.encode({'message': message}),
-      );
-      if (res.statusCode == 200) {
-        final data = json.decode(res.body);
-        return data['reply'] ?? 'Tidak ada balasan.';
+    for (final host in [ApiConfig.baseUrl, ...ApiConfig.fallbackUrls]) {
+      try {
+        final res = await http.post(
+          Uri.parse('$host/api/chatbot'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: json.encode({'message': message}),
+        ).timeout(const Duration(seconds: 6));
+        if (res.statusCode == 200) {
+          ApiConfig.baseUrl = host;
+          final data = json.decode(res.body);
+          return data['reply'] ?? 'Tidak ada balasan.';
+        }
+      } catch (e) {
+        debugPrint('Error AI chat on $host: $e');
       }
-    } catch (e) {
-      debugPrint('Error AI chat: $e');
     }
-    return 'Gagal terhubung ke Naoo Helper AI.';
+    return 'Gagal terhubung ke Naoo Helper AI. Pastikan server Laravel aktif.';
   }
 }

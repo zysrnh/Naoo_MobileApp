@@ -22,7 +22,12 @@ class _NaooMobileAppState extends State<NaooMobileApp> {
   NeoThemeData _currentTheme = AppThemes.allThemes[0]; // Default Classic Blue
   bool _showSplash = true;
   bool _isLoggedIn = true;
-  String _userEmail = 'yusron@dev.com';
+  Map<String, dynamic>? _user = {
+    'name': 'Zaki Yusron',
+    'email': 'yusron@dev.com',
+    'role': 'admin',
+    'is_admin': true,
+  };
 
   void _changeTheme(NeoThemeData newTheme) {
     setState(() {
@@ -30,9 +35,9 @@ class _NaooMobileAppState extends State<NaooMobileApp> {
     });
   }
 
-  void _handleLogin(String email, String password) {
+  void _handleLogin(Map<String, dynamic> user) {
     setState(() {
-      _userEmail = email;
+      _user = user;
       _isLoggedIn = true;
     });
   }
@@ -40,6 +45,7 @@ class _NaooMobileAppState extends State<NaooMobileApp> {
   void _handleLogout() {
     setState(() {
       _isLoggedIn = false;
+      _user = null;
     });
   }
 
@@ -66,7 +72,7 @@ class _NaooMobileAppState extends State<NaooMobileApp> {
           : _isLoggedIn
               ? MainNavigationScreen(
                   theme: _currentTheme,
-                  userEmail: _userEmail,
+                  user: _user,
                   onThemeChanged: _changeTheme,
                   onLogout: _handleLogout,
                 )
@@ -80,14 +86,14 @@ class _NaooMobileAppState extends State<NaooMobileApp> {
 
 class MainNavigationScreen extends StatefulWidget {
   final NeoThemeData theme;
-  final String userEmail;
+  final Map<String, dynamic>? user;
   final Function(NeoThemeData) onThemeChanged;
   final VoidCallback onLogout;
 
   const MainNavigationScreen({
     super.key,
     required this.theme,
-    required this.userEmail,
+    required this.user,
     required this.onThemeChanged,
     required this.onLogout,
   });
@@ -98,9 +104,12 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
+  final int _unreadNotifications = 2; // Real-time notification badge counter
 
   void _showThemeSelector() {
     final t = widget.theme;
+    final userName = widget.user?['name'] ?? 'User';
+    final userRole = (widget.user?['role'] ?? 'user').toString().toUpperCase();
 
     showModalBottomSheet(
       context: context,
@@ -120,14 +129,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'PILIH TEMA WARNA (7 PALETTE)',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13,
-                      color: t.primary,
-                      letterSpacing: 0.5,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        userName.toUpperCase(),
+                        style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: t.primary),
+                      ),
+                      Text(
+                        'ROLE: $userRole',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: t.primary.withValues(alpha: 0.6)),
+                      ),
+                    ],
                   ),
                   IconButton(
                     icon: Icon(Icons.close_rounded, color: t.primary),
@@ -136,9 +149,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 ],
               ),
               const SizedBox(height: 12),
+              Text(
+                'PILIH TEMA WARNA (7 PALETTE)',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 11,
+                  color: t.primary,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 8),
               Wrap(
-                spacing: 10,
-                runSpacing: 10,
+                spacing: 8,
+                runSpacing: 8,
                 children: AppThemes.allThemes.map((themeItem) {
                   final isSelected = widget.theme.id == themeItem.id;
                   return InkWell(
@@ -147,17 +170,17 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                       Navigator.pop(context);
                     },
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: themeItem.bg,
                         border: Border.all(
                           color: isSelected ? themeItem.accent : themeItem.primary,
-                          width: isSelected ? 3.5 : 2,
+                          width: isSelected ? 3 : 2,
                         ),
                         boxShadow: [
                           BoxShadow(
                             color: themeItem.primary,
-                            offset: const Offset(3, 3),
+                            offset: const Offset(2, 2),
                             blurRadius: 0,
                           ),
                         ],
@@ -166,19 +189,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Container(
-                            width: 14,
-                            height: 14,
+                            width: 12,
+                            height: 12,
                             decoration: BoxDecoration(
                               color: themeItem.accent,
                               border: Border.all(color: themeItem.primary, width: 1.5),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Text(
                             themeItem.label.toUpperCase(),
                             style: TextStyle(
                               fontWeight: FontWeight.w900,
-                              fontSize: 10,
+                              fontSize: 9,
                               color: themeItem.primary,
                             ),
                           ),
@@ -188,12 +211,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                   );
                 }).toList(),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 18),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   icon: const Icon(Icons.logout_rounded, size: 16),
-                  label: const Text('LOGOUT AKUN ADMIN', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11)),
+                  label: const Text('LOGOUT AKUN', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red.shade600,
                     foregroundColor: Colors.white,
@@ -216,16 +239,68 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   Widget build(BuildContext context) {
     final t = widget.theme;
+    final bool isAdmin = widget.user?['is_admin'] == true || widget.user?['role'] == 'admin';
 
-    final List<Widget> screens = [
-      DashboardScreen(
-        theme: t,
-        onNavigateTab: (index) => setState(() => _currentIndex = index),
-      ),
-      QuickPostScreen(theme: t),
-      UserChatScreen(theme: t),
-      AiAssistantScreen(theme: t),
-    ];
+    final List<Widget> screens = isAdmin
+        ? [
+            DashboardScreen(
+              theme: t,
+              onNavigateTab: (index) => setState(() => _currentIndex = index),
+            ),
+            QuickPostScreen(theme: t),
+            UserChatScreen(theme: t),
+            AiAssistantScreen(theme: t),
+          ]
+        : [
+            DashboardScreen(
+              theme: t,
+              onNavigateTab: (index) => setState(() => _currentIndex = index),
+            ),
+            UserChatScreen(theme: t),
+            AiAssistantScreen(theme: t),
+          ];
+
+    final List<BottomNavigationBarItem> navItems = isAdmin
+        ? [
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard_rounded),
+              label: 'DASHBOARD',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.add_box_rounded),
+              label: 'POST PROJECT',
+            ),
+            BottomNavigationBarItem(
+              icon: Badge(
+                label: Text('$_unreadNotifications', style: const TextStyle(fontWeight: FontWeight.w900)),
+                isLabelVisible: _unreadNotifications > 0,
+                child: const Icon(Icons.chat_bubble_rounded),
+              ),
+              label: 'USER CHAT',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.smart_toy_rounded),
+              label: 'AI HELPER',
+            ),
+          ]
+        : [
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard_rounded),
+              label: 'HOME',
+            ),
+            BottomNavigationBarItem(
+              icon: Badge(
+                label: Text('$_unreadNotifications', style: const TextStyle(fontWeight: FontWeight.w900)),
+                isLabelVisible: _unreadNotifications > 0,
+                child: const Icon(Icons.chat_bubble_rounded),
+              ),
+              label: 'CHAT ADMIN',
+            ),
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.smart_toy_rounded),
+              label: 'AI HELPER',
+            ),
+          ];
 
     return Scaffold(
       appBar: AppBar(
@@ -240,7 +315,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 border: Border.all(color: t.bg, width: 2),
               ),
               child: Text(
-                'NAOO.MOBILE',
+                isAdmin ? 'NAOO.ADMIN' : 'NAOO.MOBILE',
                 style: TextStyle(
                   color: t.primary,
                   fontWeight: FontWeight.w900,
@@ -259,14 +334,14 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           ),
         ],
       ),
-      body: screens[_currentIndex],
+      body: screens[_currentIndex < screens.length ? _currentIndex : 0],
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: t.primary,
           border: Border(top: BorderSide(color: t.primary, width: 4)),
         ),
         child: BottomNavigationBar(
-          currentIndex: _currentIndex,
+          currentIndex: _currentIndex < navItems.length ? _currentIndex : 0,
           onTap: (index) => setState(() => _currentIndex = index),
           backgroundColor: t.primary,
           selectedItemColor: t.accent,
@@ -274,24 +349,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           type: BottomNavigationBarType.fixed,
           selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 10),
           unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 9),
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_rounded),
-              label: 'DASHBOARD',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.add_box_rounded),
-              label: 'POST PROJECT',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_rounded),
-              label: 'USER CHAT',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.smart_toy_rounded),
-              label: 'AI HELPER',
-            ),
-          ],
+          items: navItems,
         ),
       ),
     );
