@@ -1,122 +1,299 @@
 import 'package:flutter/material.dart';
+import 'screens/ai_assistant_screen.dart';
+import 'screens/dashboard_screen.dart';
+import 'screens/login_screen.dart';
+import 'screens/quick_post_screen.dart';
+import 'screens/splash_screen.dart';
+import 'screens/user_chat_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const NaooMobileApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // This widget is the root of your application.
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
-    );
-  }
-}
-
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class NaooMobileApp extends StatefulWidget {
+  const NaooMobileApp({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<NaooMobileApp> createState() => _NaooMobileAppState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _NaooMobileAppState extends State<NaooMobileApp> {
+  NeoThemeData _currentTheme = AppThemes.allThemes[0]; // Default Classic Blue
+  bool _showSplash = true;
+  bool _isLoggedIn = true;
+  String _userEmail = 'yusron@dev.com';
 
-  void _incrementCounter() {
+  void _changeTheme(NeoThemeData newTheme) {
     setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
+      _currentTheme = newTheme;
+    });
+  }
+
+  void _handleLogin(String email, String password) {
+    setState(() {
+      _userEmail = email;
+      _isLoggedIn = true;
+    });
+  }
+
+  void _handleLogout() {
+    setState(() {
+      _isLoggedIn = false;
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+    return MaterialApp(
+      title: 'Naoo Mobile Admin',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        scaffoldBackgroundColor: _currentTheme.bg,
+        fontFamily: 'sans-serif',
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: _currentTheme.primary,
+          primary: _currentTheme.primary,
+          secondary: _currentTheme.accent,
+        ),
+      ),
+      home: _showSplash
+          ? SplashScreen(
+              theme: _currentTheme,
+              onFinish: () => setState(() => _showSplash = false),
+            )
+          : _isLoggedIn
+              ? MainNavigationScreen(
+                  theme: _currentTheme,
+                  userEmail: _userEmail,
+                  onThemeChanged: _changeTheme,
+                  onLogout: _handleLogout,
+                )
+              : LoginScreen(
+                  theme: _currentTheme,
+                  onLoginSuccess: _handleLogin,
+                ),
+    );
+  }
+}
+
+class MainNavigationScreen extends StatefulWidget {
+  final NeoThemeData theme;
+  final String userEmail;
+  final Function(NeoThemeData) onThemeChanged;
+  final VoidCallback onLogout;
+
+  const MainNavigationScreen({
+    super.key,
+    required this.theme,
+    required this.userEmail,
+    required this.onThemeChanged,
+    required this.onLogout,
+  });
+
+  @override
+  State<MainNavigationScreen> createState() => _MainNavigationScreenState();
+}
+
+class _MainNavigationScreenState extends State<MainNavigationScreen> {
+  int _currentIndex = 0;
+
+  void _showThemeSelector() {
+    final t = widget.theme;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: t.bg,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: t.bg,
+            border: Border(top: BorderSide(color: t.primary, width: 4)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'PILIH TEMA WARNA (7 PALETTE)',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                      color: t.primary,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.close_rounded, color: t.primary),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: AppThemes.allThemes.map((themeItem) {
+                  final isSelected = widget.theme.id == themeItem.id;
+                  return InkWell(
+                    onTap: () {
+                      widget.onThemeChanged(themeItem);
+                      Navigator.pop(context);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: themeItem.bg,
+                        border: Border.all(
+                          color: isSelected ? themeItem.accent : themeItem.primary,
+                          width: isSelected ? 3.5 : 2,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: themeItem.primary,
+                            offset: const Offset(3, 3),
+                            blurRadius: 0,
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 14,
+                            height: 14,
+                            decoration: BoxDecoration(
+                              color: themeItem.accent,
+                              border: Border.all(color: themeItem.primary, width: 1.5),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            themeItem.label.toUpperCase(),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 10,
+                              color: themeItem.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.logout_rounded, size: 16),
+                  label: const Text('LOGOUT AKUN ADMIN', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade600,
+                    foregroundColor: Colors.white,
+                    shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    widget.onLogout();
+                  },
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = widget.theme;
+
+    final List<Widget> screens = [
+      DashboardScreen(
+        theme: t,
+        onNavigateTab: (index) => setState(() => _currentIndex = index),
+      ),
+      QuickPostScreen(theme: t),
+      UserChatScreen(theme: t),
+      AiAssistantScreen(theme: t),
+    ];
+
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        backgroundColor: t.primary,
+        elevation: 0,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: t.accent,
+                border: Border.all(color: t.bg, width: 2),
+              ),
+              child: Text(
+                'NAOO.MOBILE',
+                style: TextStyle(
+                  color: t.primary,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.palette_rounded, color: t.accent),
+            tooltip: 'Ganti Tema / Control',
+            onPressed: _showThemeSelector,
+          ),
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
+      body: screens[_currentIndex],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: t.primary,
+          border: Border(top: BorderSide(color: t.primary, width: 4)),
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          onTap: (index) => setState(() => _currentIndex = index),
+          backgroundColor: t.primary,
+          selectedItemColor: t.accent,
+          unselectedItemColor: Colors.white60,
+          type: BottomNavigationBarType.fixed,
+          selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 10),
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 9),
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard_rounded),
+              label: 'DASHBOARD',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.add_box_rounded),
+              label: 'POST PROJECT',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.chat_bubble_rounded),
+              label: 'USER CHAT',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.smart_toy_rounded),
+              label: 'AI HELPER',
             ),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
 }
