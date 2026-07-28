@@ -26,16 +26,7 @@ class _QuickPostScreenState extends State<QuickPostScreen> {
   String _workType = 'Solo';
   bool _submitting = false;
 
-  // Collaborators List for Collaboration mode
   final List<Map<String, String>> _collaborators = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _titleController.addListener(() => setState(() {}));
-    _subtitleController.addListener(() => setState(() {}));
-    _descController.addListener(() => setState(() {}));
-  }
 
   void _addCollaborator() {
     final nameCtrl = TextEditingController();
@@ -166,7 +157,7 @@ class _QuickPostScreenState extends State<QuickPostScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          // LIVE PREVIEW BOX
+          // LIVE PREVIEW BOX (ISOLATED LISTENERS FOR HIGH PERFORMANCE)
           Text(
             'LIVE CARD PREVIEW (TAMPILAN DI WEB)',
             style: TextStyle(
@@ -177,87 +168,102 @@ class _QuickPostScreenState extends State<QuickPostScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          BrutalCard(
-            bgColor: t.cardBg,
-            borderColor: t.primary,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _titleController.text.isEmpty
-                            ? 'JUDUL PROJECT'
-                            : _titleController.text.toUpperCase(),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 14,
-                          color: t.primary,
+          ValueListenableBuilder(
+            valueListenable: _titleController,
+            builder: (context, _, __) {
+              return ValueListenableBuilder(
+                valueListenable: _subtitleController,
+                builder: (context, _, __) {
+                  return ValueListenableBuilder(
+                    valueListenable: _descController,
+                    builder: (context, _, __) {
+                      return BrutalCard(
+                        bgColor: t.cardBg,
+                        borderColor: t.primary,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _titleController.text.isEmpty
+                                        ? 'JUDUL PROJECT'
+                                        : _titleController.text.toUpperCase(),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14,
+                                      color: t.primary,
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: t.accent,
+                                    border: Border.all(color: t.primary, width: 2),
+                                  ),
+                                  child: Text(
+                                    _status.toUpperCase(),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 9,
+                                      color: t.primary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (_subtitleController.text.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                _subtitleController.text,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                  color: t.primary.withValues(alpha: 0.8),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 8),
+                            Text(
+                              _descController.text.isEmpty
+                                  ? 'Deskripsi singkat project akan muncul di sini...'
+                                  : _descController.text,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: t.primary.withValues(alpha: 0.7),
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: t.primary,
+                                  ),
+                                  child: Text(
+                                    _workType.toUpperCase(),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 8,
+                                      color: t.accent,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: t.accent,
-                        border: Border.all(color: t.primary, width: 2),
-                      ),
-                      child: Text(
-                        _status.toUpperCase(),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 9,
-                          color: t.primary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (_subtitleController.text.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    _subtitleController.text,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                      color: t.primary.withValues(alpha: 0.8),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 8),
-                Text(
-                  _descController.text.isEmpty
-                      ? 'Deskripsi singkat project akan muncul di sini...'
-                      : _descController.text,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: t.primary.withValues(alpha: 0.7),
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: t.primary,
-                      ),
-                      child: Text(
-                        _workType.toUpperCase(),
-                        style: TextStyle(
-                          fontWeight: FontWeight.w900,
-                          fontSize: 8,
-                          color: t.accent,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                      );
+                    },
+                  );
+                },
+              );
+            },
           ),
           const SizedBox(height: 20),
 
