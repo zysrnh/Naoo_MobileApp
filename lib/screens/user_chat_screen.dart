@@ -35,6 +35,75 @@ class _UserChatScreenState extends State<UserChatScreen> {
     }
   }
 
+  void _showReplyDialog(Map<String, dynamic> msg) {
+    final t = widget.theme;
+    final msgId = msg['id'] as int;
+    final senderName = (msg['name'] ?? 'User').toString();
+    final replyController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: t.bg,
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          title: Text(
+            'BALAS PESAN / DM KE $senderName',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: t.primary),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Isi Pesan User: "${msg['message'] ?? ''}"',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: t.primary.withValues(alpha: 0.7)),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: replyController,
+                maxLines: 3,
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: t.primary),
+                decoration: InputDecoration(
+                  hintText: 'Ketik balasan pesan...',
+                  hintStyle: TextStyle(color: t.primary.withValues(alpha: 0.4), fontSize: 11),
+                  border: OutlineInputBorder(borderSide: BorderSide(color: t.primary, width: 2), borderRadius: BorderRadius.zero),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('BATAL', style: TextStyle(fontWeight: FontWeight.bold, color: t.primary)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: t.primary,
+                foregroundColor: t.accent,
+                shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+              ),
+              onPressed: () async {
+                final replyText = replyController.text.trim();
+                if (replyText.isNotEmpty) {
+                  Navigator.pop(ctx);
+                  final ok = await ApiService.replyUserMessage(msgId, replyText);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(ok ? 'Balasan DM berhasil terkirim ke $senderName!' : 'Gagal mengirim balasan.')),
+                    );
+                  }
+                  _loadMessages();
+                }
+              },
+              child: const Text('KIRIM BALASAN →', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _sendMessage() async {
     final text = _msgController.text.trim();
     if (text.isEmpty) return;
@@ -164,7 +233,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           itemCount: _messages.length,
                           itemBuilder: (ctx, i) {
-                            final m = _messages[i];
+                            final m = Map<String, dynamic>.from(_messages[i]);
                             final senderName = (m['name'] ?? 'Pengunjung').toString();
                             final senderEmail = (m['email'] ?? '').toString();
                             final content = (m['message'] ?? '').toString();
@@ -213,16 +282,28 @@ class _UserChatScreenState extends State<UserChatScreen> {
                                       content,
                                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: t.primary.withValues(alpha: 0.95)),
                                     ),
-                                    if (createdAt.isNotEmpty) ...[
-                                      const SizedBox(height: 6),
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: Text(
-                                          createdAt.length > 16 ? createdAt.substring(0, 16) : createdAt,
-                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 9, color: t.primary.withValues(alpha: 0.5)),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        if (createdAt.isNotEmpty)
+                                          Text(
+                                            createdAt.length > 16 ? createdAt.substring(0, 16) : createdAt,
+                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 9, color: t.primary.withValues(alpha: 0.5)),
+                                          ),
+                                        ElevatedButton.icon(
+                                          icon: const Icon(Icons.reply_rounded, size: 14),
+                                          label: const Text('BALAS DM USER', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 9)),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: t.primary,
+                                            foregroundColor: t.accent,
+                                            shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                          ),
+                                          onPressed: () => _showReplyDialog(m),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ],
                                 ),
                               ),

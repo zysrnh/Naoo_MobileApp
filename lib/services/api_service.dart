@@ -16,6 +16,15 @@ class ApiConfig {
 }
 
 class ApiService {
+  static String formatImageUrl(String? rawUrl) {
+    if (rawUrl == null || rawUrl.isEmpty) return '';
+    if (rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('data:image')) {
+      return rawUrl;
+    }
+    final cleanPath = rawUrl.startsWith('/') ? rawUrl : '/$rawUrl';
+    return '${ApiConfig.baseUrl}$cleanPath';
+  }
+
   static Future<Map<String, dynamic>?> login(String email, String password) async {
     for (final host in ApiConfig.fallbackUrls) {
       try {
@@ -139,6 +148,28 @@ class ApiService {
         }
       } catch (e) {
         debugPrint('Error send message on $host: $e');
+      }
+    }
+    return false;
+  }
+
+  static Future<bool> replyUserMessage(int messageId, String body) async {
+    for (final host in [ApiConfig.baseUrl, ...ApiConfig.fallbackUrls]) {
+      try {
+        final res = await http.post(
+          Uri.parse('$host/api/mobile/messages/$messageId/reply'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: json.encode({'body': body}),
+        ).timeout(const Duration(seconds: 6));
+        if (res.statusCode == 200) {
+          ApiConfig.baseUrl = host;
+          return true;
+        }
+      } catch (e) {
+        debugPrint('Error reply message on $host: $e');
       }
     }
     return false;

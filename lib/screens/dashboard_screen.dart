@@ -50,6 +50,55 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  void _showImagePreview(BuildContext context, String imageUrl) {
+    final t = widget.theme;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.black.withValues(alpha: 0.9),
+          insetPadding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Text(
+                      'PREVIEW GAMBAR PROJECT (PINCH TO ZOOM)',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: t.primary),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.white),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              Expanded(
+                child: InteractiveViewer(
+                  panEnabled: true,
+                  boundaryMargin: const EdgeInsets.all(20),
+                  minScale: 0.8,
+                  maxScale: 4.0,
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    errorBuilder: (c, e, s) => const Center(
+                      child: Icon(Icons.broken_image_rounded, size: 64, color: Colors.white54),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   void _showProjectDetail(Map<String, dynamic> project) {
     final t = widget.theme;
     final title = (project['title'] ?? 'Project').toString().toUpperCase();
@@ -146,18 +195,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           scrollDirection: Axis.horizontal,
                           itemCount: images.length,
                           itemBuilder: (ctx, i) {
-                            return Container(
-                              width: 200,
-                              margin: const EdgeInsets.only(right: 10),
-                              decoration: BoxDecoration(
-                                border: Border.all(color: t.primary, width: 2),
-                              ),
-                              child: Image.network(
-                                images[i].toString(),
-                                fit: BoxFit.cover,
-                                errorBuilder: (c, e, s) => Container(
-                                  color: t.cardBg,
-                                  child: Icon(Icons.image_not_supported_rounded, color: t.primary),
+                            final fullUrl = ApiService.formatImageUrl(images[i].toString());
+                            return InkWell(
+                              onTap: () => _showImagePreview(context, fullUrl),
+                              child: Container(
+                                width: 200,
+                                margin: const EdgeInsets.only(right: 10),
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: t.primary, width: 2),
+                                ),
+                                child: Image.network(
+                                  fullUrl,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (c, e, s) => Container(
+                                    color: t.cardBg,
+                                    child: Icon(Icons.image_not_supported_rounded, color: t.primary),
+                                  ),
                                 ),
                               ),
                             );
