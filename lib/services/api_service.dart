@@ -3,8 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiConfig {
-  // Tempelkan URL Cloudflare Tunnel kamu di sini jika mau pakai jaringan seluler 4G/5G dari luar rumah:
-  static String cloudflareUrl = ''; 
+  // URL Cloudflare Tunnel aktif publik HTTPS:
+  static String cloudflareUrl = 'https://brunswick-revelation-skirts-within.trycloudflare.com'; 
 
   static String baseUrl = 'http://192.168.101.70:8000';
 
