@@ -248,7 +248,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               onNavigateTab: (index) => setState(() => _currentIndex = index),
             ),
             QuickPostScreen(theme: t),
-            UserChatScreen(theme: t),
+            UserChatScreen(theme: t, currentUser: widget.user),
             AiAssistantScreen(theme: t),
           ]
         : [
@@ -256,7 +256,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
               theme: t,
               onNavigateTab: (index) => setState(() => _currentIndex = index),
             ),
-            UserChatScreen(theme: t),
+            UserChatScreen(theme: t, currentUser: widget.user),
             AiAssistantScreen(theme: t),
           ];
 
@@ -329,8 +329,13 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         actions: [
           IconButton(
             icon: Icon(Icons.palette_rounded, color: t.accent),
-            tooltip: 'Ganti Tema / Control',
+            tooltip: 'Ganti Tema / Profile',
             onPressed: _showThemeSelector,
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout_rounded, color: Colors.redAccent),
+            tooltip: 'Logout Akun',
+            onPressed: widget.onLogout,
           ),
         ],
       ),

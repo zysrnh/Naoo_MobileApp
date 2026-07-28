@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
@@ -114,7 +115,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final soloRole = project['solo_role'] ?? project['soloRole'] ?? 'Fullstack Developer';
     final List<dynamic> collaborators = project['collaborators'] ?? [];
     final List<dynamic> features = project['features'] ?? [];
-    final List<dynamic> images = project['images'] ?? [];
+    List<dynamic> images = [];
+    final rawImages = project['images'];
+    if (rawImages != null) {
+      if (rawImages is List) {
+        images = List<dynamic>.from(rawImages);
+      } else if (rawImages is String) {
+        try {
+          final decoded = json.decode(rawImages);
+          if (decoded is List) {
+            images = decoded;
+          } else if (decoded is String && decoded.isNotEmpty) {
+            images = [decoded];
+          }
+        } catch (_) {
+          if (rawImages.trim().isNotEmpty) {
+            images = [rawImages];
+          }
+        }
+      }
+    }
 
     showModalBottomSheet(
       context: context,
@@ -702,53 +722,91 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         )
                       : Column(
-                          children: projects
-                              .map((p) => Padding(
-                                    padding: const EdgeInsets.only(bottom: 10.0),
-                                    child: InkWell(
-                                      onTap: () => _showProjectDetail(Map<String, dynamic>.from(p)),
-                                      child: BrutalCard(
-                                        bgColor: t.cardBg,
-                                        borderColor: t.primary,
-                                        child: ListTile(
-                                          contentPadding: EdgeInsets.zero,
-                                          title: Text(
-                                            (p['title'] ?? 'Project').toString().toUpperCase(),
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w900,
-                                              fontSize: 13,
-                                              color: t.primary,
-                                            ),
-                                          ),
-                                          subtitle: Text(
-                                            p['desc'] ?? '',
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              fontSize: 11,
-                                              color: t.primary.withValues(alpha: 0.7),
-                                            ),
-                                          ),
-                                          trailing: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: t.accent,
-                                              border: Border.all(color: t.primary, width: 2),
-                                            ),
-                                            child: Text(
-                                              (p['status'] ?? 'Live').toString().toUpperCase(),
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 9,
-                                                color: t.primary,
+                          children: projects.map((p) {
+                            String? thumbUrl;
+                            final rawImgs = p['images'];
+                            if (rawImgs != null) {
+                              if (rawImgs is List && rawImgs.isNotEmpty) {
+                                thumbUrl = rawImgs.first.toString();
+                              } else if (rawImgs is String) {
+                                try {
+                                  final decoded = json.decode(rawImgs);
+                                  if (decoded is List && decoded.isNotEmpty) {
+                                    thumbUrl = decoded.first.toString();
+                                  } else if (decoded is String && decoded.isNotEmpty) {
+                                    thumbUrl = decoded;
+                                  }
+                                } catch (_) {
+                                  if (rawImgs.trim().isNotEmpty) thumbUrl = rawImgs;
+                                }
+                              }
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 10.0),
+                              child: InkWell(
+                                onTap: () => _showProjectDetail(Map<String, dynamic>.from(p)),
+                                child: BrutalCard(
+                                  bgColor: t.cardBg,
+                                  borderColor: t.primary,
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Container(
+                                      width: 48,
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        color: t.accent,
+                                        border: Border.all(color: t.primary, width: 2),
+                                      ),
+                                      child: thumbUrl != null && thumbUrl.isNotEmpty
+                                          ? Image.network(
+                                              ApiService.formatImageUrl(thumbUrl),
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (c, e, s) => Center(
+                                                child: Icon(Icons.code_rounded, color: t.primary, size: 20),
                                               ),
+                                            )
+                                          : Center(
+                                              child: Icon(Icons.folder_special_rounded, color: t.primary, size: 20),
                                             ),
-                                          ),
+                                    ),
+                                    title: Text(
+                                      (p['title'] ?? 'Project').toString().toUpperCase(),
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 13,
+                                        color: t.primary,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      p['desc'] ?? '',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: t.primary.withValues(alpha: 0.7),
+                                      ),
+                                    ),
+                                    trailing: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: t.accent,
+                                        border: Border.all(color: t.primary, width: 2),
+                                      ),
+                                      child: Text(
+                                        (p['status'] ?? 'Live').toString().toUpperCase(),
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 9,
+                                          color: t.primary,
                                         ),
                                       ),
                                     ),
-                                  ))
-                              .toList(),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
                         ),
             ),
           ],

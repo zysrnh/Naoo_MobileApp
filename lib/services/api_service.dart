@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiConfig {
-  static String cloudflareUrl = 'https://brunswick-revelation-skirts-within.trycloudflare.com';
+  static String cloudflareUrl = 'https://struck-football-every-rounds.trycloudflare.com';
 
   static String baseUrl = 'http://192.168.101.70:8000';
 
@@ -106,6 +106,73 @@ class ApiService {
         }
       } catch (e) {
         debugPrint('Error create project on $host: $e');
+      }
+    }
+    return false;
+  }
+
+  static Future<List<dynamic>> fetchDirectUsers() async {
+    for (final host in [ApiConfig.baseUrl, ...ApiConfig.fallbackUrls]) {
+      try {
+        final res = await http.get(
+          Uri.parse('$host/api/mobile/user-chats/users'),
+          headers: {'Accept': 'application/json'},
+        ).timeout(const Duration(seconds: 5));
+        if (res.statusCode == 200) {
+          ApiConfig.baseUrl = host;
+          final data = json.decode(res.body);
+          if (data is List) return data;
+        }
+      } catch (e) {
+        debugPrint('Error fetch direct users on $host: $e');
+      }
+    }
+    return [];
+  }
+
+  static Future<List<dynamic>> fetchDirectHistory(int receiverId, {int? currentUserId}) async {
+    for (final host in [ApiConfig.baseUrl, ...ApiConfig.fallbackUrls]) {
+      try {
+        final url = currentUserId != null
+            ? '$host/api/mobile/user-chats/$receiverId?sender_id=$currentUserId'
+            : '$host/api/mobile/user-chats/$receiverId';
+        final res = await http.get(
+          Uri.parse(url),
+          headers: {'Accept': 'application/json'},
+        ).timeout(const Duration(seconds: 5));
+        if (res.statusCode == 200) {
+          ApiConfig.baseUrl = host;
+          final data = json.decode(res.body);
+          if (data is List) return data;
+        }
+      } catch (e) {
+        debugPrint('Error fetch direct history on $host: $e');
+      }
+    }
+    return [];
+  }
+
+  static Future<bool> sendDirectMessage(int receiverId, String message, {int? senderId}) async {
+    for (final host in [ApiConfig.baseUrl, ...ApiConfig.fallbackUrls]) {
+      try {
+        final res = await http.post(
+          Uri.parse('$host/api/mobile/user-chats'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: json.encode({
+            'receiver_id': receiverId,
+            'message': message,
+            if (senderId != null) 'sender_id': senderId,
+          }),
+        ).timeout(const Duration(seconds: 6));
+        if (res.statusCode == 200 || res.statusCode == 201) {
+          ApiConfig.baseUrl = host;
+          return true;
+        }
+      } catch (e) {
+        debugPrint('Error send direct message on $host: $e');
       }
     }
     return false;
