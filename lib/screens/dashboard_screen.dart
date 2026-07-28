@@ -752,8 +752,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   child: ListTile(
                                     contentPadding: EdgeInsets.zero,
                                     leading: Container(
-                                      width: 48,
-                                      height: 48,
+                                      width: 64,
+                                      height: 64,
                                       decoration: BoxDecoration(
                                         color: t.accent,
                                         border: Border.all(color: t.primary, width: 2),
@@ -763,11 +763,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                               ApiService.formatImageUrl(thumbUrl),
                                               fit: BoxFit.cover,
                                               errorBuilder: (c, e, s) => Center(
-                                                child: Icon(Icons.code_rounded, color: t.primary, size: 20),
+                                                child: Icon(Icons.code_rounded, color: t.primary, size: 26),
                                               ),
                                             )
                                           : Center(
-                                              child: Icon(Icons.folder_special_rounded, color: t.primary, size: 20),
+                                              child: Icon(Icons.folder_special_rounded, color: t.primary, size: 26),
                                             ),
                                     ),
                                     title: Text(

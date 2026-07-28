@@ -64,22 +64,42 @@ class _NaooMobileAppState extends State<NaooMobileApp> {
           secondary: _currentTheme.accent,
         ),
       ),
-      home: _showSplash
-          ? SplashScreen(
-              theme: _currentTheme,
-              onFinish: () => setState(() => _showSplash = false),
-            )
-          : _isLoggedIn
-              ? MainNavigationScreen(
-                  theme: _currentTheme,
-                  user: _user,
-                  onThemeChanged: _changeTheme,
-                  onLogout: _handleLogout,
-                )
-              : LoginScreen(
-                  theme: _currentTheme,
-                  onLoginSuccess: _handleLogin,
-                ),
+      home: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 500),
+        switchInCurve: Curves.easeOutBack,
+        switchOutCurve: Curves.easeIn,
+        transitionBuilder: (child, animation) {
+          return FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0.0, 0.05),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
+          );
+        },
+        child: _showSplash
+            ? SplashScreen(
+                key: const ValueKey('splash'),
+                theme: _currentTheme,
+                onFinish: () => setState(() => _showSplash = false),
+              )
+            : _isLoggedIn
+                ? MainNavigationScreen(
+                    key: const ValueKey('main_nav'),
+                    theme: _currentTheme,
+                    user: _user,
+                    onThemeChanged: _changeTheme,
+                    onLogout: _handleLogout,
+                  )
+                : LoginScreen(
+                    key: const ValueKey('login'),
+                    theme: _currentTheme,
+                    onLoginSuccess: _handleLogin,
+                  ),
+      ),
     );
   }
 }

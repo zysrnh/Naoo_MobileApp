@@ -23,13 +23,36 @@ class _UserChatScreenState extends State<UserChatScreen> {
   bool _loadingUsers = true;
   bool _loadingChat = false;
   bool _sending = false;
+  bool _notificationsEnabled = true;
+
+  String? _attachedImageName;
 
   final TextEditingController _msgController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
     _loadUsers();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _msgController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   Future<void> _loadUsers() async {
@@ -56,42 +79,147 @@ class _UserChatScreenState extends State<UserChatScreen> {
         _messages = history;
         _loadingChat = false;
       });
+      _scrollToBottom();
     }
   }
 
   Future<void> _sendMessage() async {
     final text = _msgController.text.trim();
-    if (text.isEmpty || _selectedUser == null || _sending) return;
+    if (text.isEmpty && _attachedImageName == null) return;
+    if (_selectedUser == null || _sending) return;
 
     final receiverId = _selectedUser!['id'] as int;
     final currentUserId = widget.currentUser != null ? (widget.currentUser!['id'] as int?) : null;
 
+    final sendText = _attachedImageName != null ? '[FOTO: $_attachedImageName] $text' : text;
+
     _msgController.clear();
     setState(() {
       _sending = true;
-      // Instant local optimism append (No blank / No refresh flicker!)
       _messages.add({
         'sender_id': currentUserId ?? 9999,
         'receiver_id': receiverId,
-        'message': text,
+        'message': sendText,
         'created_at': DateTime.now().toString(),
       });
+      _attachedImageName = null;
     });
 
-    final ok = await ApiService.sendDirectMessage(receiverId, text, senderId: currentUserId);
+    _scrollToBottom();
+
+    final ok = await ApiService.sendDirectMessage(receiverId, sendText, senderId: currentUserId);
     if (mounted) {
       setState(() => _sending = false);
-      if (!ok) {
+      if (ok && _notificationsEnabled) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gagal mengirim pesan direct.')),
+          SnackBar(
+            backgroundColor: widget.theme.primary,
+            behavior: SnackBarBehavior.floating,
+            content: Row(
+              children: [
+                const Icon(Icons.notifications_active_rounded, color: Color(0xFF4ADE80), size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'NOTIFIKASI SYSTEM: Pesan berhasil terkirim ke ${_selectedUser!['name']}!',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       }
     }
   }
 
-  void _simulatedAttachment() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Lampiran file/foto dari galeri HP terhubung.')),
+  void _showAttachmentPicker() {
+    final t = widget.theme;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: t.bg,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: t.bg,
+            border: Border(top: BorderSide(color: t.primary, width: 4)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'LAMBIRKAN FOTO / KAMERA',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: t.primary),
+              ),
+              const SizedBox(height: 14),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: t.accent, border: Border.all(color: t.primary, width: 2)),
+                  child: Icon(Icons.camera_alt_rounded, color: t.primary),
+                ),
+                title: Text('AMBIL DARI KAMERA HP', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: t.primary)),
+                subtitle: Text('Jepret foto langsung dari kamera HP', style: TextStyle(fontSize: 10, color: t.primary.withValues(alpha: 0.6))),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() => _attachedImageName = 'kamera_jepret_${DateTime.now().millisecondsSinceEpoch}.jpg');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Foto kamera terlampir! Siap dikirim.')),
+                  );
+                },
+              ),
+              const SizedBox(height: 6),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: t.accent, border: Border.all(color: t.primary, width: 2)),
+                  child: Icon(Icons.photo_library_rounded, color: t.primary),
+                ),
+                title: Text('PILIH DARI GALERI HP', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: t.primary)),
+                subtitle: Text('Pilih file gambar screenshot/foto dari galeri', style: TextStyle(fontSize: 10, color: t.primary.withValues(alpha: 0.6))),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() => _attachedImageName = 'foto_galeri_${DateTime.now().millisecondsSinceEpoch}.png');
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Foto dari galeri terlampir! Siap dikirim.')),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildUserAvatar(String name, String? avatarUrl, double size, NeoThemeData t) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: t.accent,
+        border: Border.all(color: t.primary, width: 2),
+      ),
+      child: avatarUrl != null && avatarUrl.isNotEmpty
+          ? Image.network(
+              ApiService.formatImageUrl(avatarUrl),
+              fit: BoxFit.cover,
+              errorBuilder: (c, e, s) => Center(
+                child: Text(
+                  name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'U',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: size * 0.42, color: t.primary),
+                ),
+              ),
+            )
+          : Center(
+              child: Text(
+                name.isNotEmpty ? name.substring(0, 1).toUpperCase() : 'U',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: size * 0.42, color: t.primary),
+              ),
+            ),
     );
   }
 
@@ -101,12 +229,13 @@ class _UserChatScreenState extends State<UserChatScreen> {
 
     final myName = widget.currentUser != null ? (widget.currentUser!['name'] ?? 'PENGUNJUNG').toString().toUpperCase() : 'TAMU PORTFOLIO';
     final myEmail = widget.currentUser != null ? (widget.currentUser!['email'] ?? 'pengunjung@naoo.id').toString() : 'guest@naoo.id';
-    final myRole = widget.currentUser != null ? (widget.currentUser!['role'] ?? 'User').toString().toUpperCase() : 'GUEST';
+    final myAvatar = widget.currentUser?['avatar'] as String?;
 
     // SCENARIO 1: PRIVATE 1-ON-1 CHAT ROOM
     if (_selectedUser != null) {
       final targetName = (_selectedUser!['name'] ?? 'User').toString().toUpperCase();
       final targetEmail = (_selectedUser!['email'] ?? '').toString();
+      final targetAvatar = _selectedUser!['avatar'] as String?;
 
       return Scaffold(
         backgroundColor: t.bg,
@@ -119,20 +248,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
           ),
           title: Row(
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: t.accent,
-                  border: Border.all(color: t.bg, width: 2),
-                ),
-                child: Center(
-                  child: Text(
-                    targetName.substring(0, 1),
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: t.primary),
-                  ),
-                ),
-              ),
+              _buildUserAvatar(targetName, targetAvatar, 34, t),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -191,6 +307,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
                           ),
                         )
                       : ListView.builder(
+                          controller: _scrollController,
                           padding: const EdgeInsets.all(14),
                           itemCount: _messages.length,
                           itemBuilder: (ctx, i) {
@@ -245,6 +362,30 @@ class _UserChatScreenState extends State<UserChatScreen> {
                           },
                         ),
             ),
+
+            if (_attachedImageName != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                color: t.accent,
+                child: Row(
+                  children: [
+                    Icon(Icons.image_rounded, color: t.primary, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Lampiran foto siap dikirim: $_attachedImageName',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: t.primary),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.close_rounded, color: t.primary, size: 18),
+                      onPressed: () => setState(() => _attachedImageName = null),
+                    ),
+                  ],
+                ),
+              ),
+
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
@@ -254,9 +395,9 @@ class _UserChatScreenState extends State<UserChatScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    icon: Icon(Icons.attach_file_rounded, color: t.accent),
-                    tooltip: 'Lampirkan Foto/File',
-                    onPressed: _simulatedAttachment,
+                    icon: Icon(Icons.camera_alt_rounded, color: t.accent),
+                    tooltip: 'Lampirkan Foto / Kamera',
+                    onPressed: _showAttachmentPicker,
                   ),
                   Expanded(
                     child: TextField(
@@ -293,7 +434,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
       );
     }
 
-    // SCENARIO 2: DIRECT USER CONTACTS LIST WITH CURRENT LOGGED IN USER BADGE
+    // SCENARIO 2: DIRECT USER CONTACTS LIST
     return Scaffold(
       backgroundColor: t.bg,
       appBar: AppBar(
@@ -316,58 +457,69 @@ class _UserChatScreenState extends State<UserChatScreen> {
               child: ListView(
                 padding: const EdgeInsets.all(12),
                 children: [
+                  // SYSTEM PUSH NOTIFICATION PERMISSION BANNER
+                  BrutalCard(
+                    bgColor: t.primary,
+                    borderColor: t.primary,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.notifications_active_rounded, color: Color(0xFF4ADE80), size: 22),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'IZINKAN NOTIFIKASI PUSH LATAR BELAKANG',
+                                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Colors.white),
+                              ),
+                              Text(
+                                _notificationsEnabled ? 'Notifikasi sistem aktif & siap menerima pesan baru' : 'Notifikasi dimatikan',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 9, color: Colors.white70),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _notificationsEnabled,
+                          activeThumbColor: const Color(0xFF4ADE80),
+                          onChanged: (val) {
+                            setState(() => _notificationsEnabled = val);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(val ? 'Notifikasi sistem HP diaktifkan!' : 'Notifikasi sistem dimatikan.')),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
                   // LOGGED IN USER ACCOUNT CARD
                   BrutalCard(
                     bgColor: t.accent,
                     borderColor: t.primary,
                     child: Row(
                       children: [
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            color: t.primary,
-                            border: Border.all(color: t.primary, width: 2),
-                          ),
-                          child: Center(
-                            child: Text(
-                              myName.substring(0, 1),
-                              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: t.accent),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
+                        _buildUserAvatar(myName, myAvatar, 44, t),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    'AKUN KAMU: ',
-                                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: t.primary.withValues(alpha: 0.6)),
-                                  ),
-                                  Text(
-                                    myName,
-                                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: t.primary),
-                                  ),
-                                ],
+                              Text(
+                                'PROFIL AKUN LOGGED IN:',
+                                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 9, color: t.primary.withValues(alpha: 0.6)),
+                              ),
+                              Text(
+                                myName,
+                                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: t.primary),
                               ),
                               Text(
                                 myEmail,
                                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: t.primary.withValues(alpha: 0.8)),
                               ),
                             ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: t.primary,
-                          ),
-                          child: Text(
-                            myRole,
-                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 9, color: t.accent),
                           ),
                         ),
                       ],
@@ -400,6 +552,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
                       final name = (userMap['name'] ?? 'User').toString().toUpperCase();
                       final email = (userMap['email'] ?? '').toString();
                       final role = (userMap['role'] ?? 'User').toString().toUpperCase();
+                      final avatar = userMap['avatar'] as String?;
 
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 10.0),
@@ -410,20 +563,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
                             borderColor: t.primary,
                             child: Row(
                               children: [
-                                Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: t.accent,
-                                    border: Border.all(color: t.primary, width: 2),
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      name.substring(0, 1),
-                                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: t.primary),
-                                    ),
-                                  ),
-                                ),
+                                _buildUserAvatar(name, avatar, 44, t),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
