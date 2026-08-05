@@ -21,6 +21,14 @@ class NeoThemeData {
 class AppThemes {
   static const List<NeoThemeData> allThemes = [
     NeoThemeData(
+      id: 'maroon_blue',
+      label: 'Maroon & Blue',
+      bg: Color(0xFFFDF0D5),
+      primary: Color(0xFF003049),
+      accent: Color(0xFF800000),
+      cardBg: Colors.white,
+    ),
+    NeoThemeData(
       id: 'naoo',
       label: 'Classic Blue',
       bg: Color(0xFFF8F3EA),

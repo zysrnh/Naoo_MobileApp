@@ -5,9 +5,12 @@ import 'screens/login_screen.dart';
 import 'screens/quick_post_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/user_chat_screen.dart';
+import 'services/notification_service.dart';
 import 'theme/app_theme.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.init();
   runApp(const NaooMobileApp());
 }
 
@@ -23,6 +26,7 @@ class _NaooMobileAppState extends State<NaooMobileApp> {
   bool _showSplash = true;
   bool _isLoggedIn = true;
   Map<String, dynamic>? _user = {
+    'id': 1,
     'name': 'Zaki Yusron',
     'email': 'yusron@dev.com',
     'role': 'admin',
@@ -124,7 +128,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
-  final int _unreadNotifications = 2; // Real-time notification badge counter
+  int _unreadNotifications = 0; // Real-time notification badge counter
 
   void _showThemeSelector() {
     final t = widget.theme;
@@ -367,7 +371,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex < navItems.length ? _currentIndex : 0,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: (index) {
+            setState(() {
+              _currentIndex = index;
+              _unreadNotifications = 0;
+            });
+          },
           backgroundColor: t.primary,
           selectedItemColor: t.accent,
           unselectedItemColor: Colors.white60,

@@ -3,9 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 class ApiConfig {
-  static String cloudflareUrl = 'https://struck-football-every-rounds.trycloudflare.com';
+  static String cloudflareUrl = 'https://backed-italiano-ends-nec.trycloudflare.com';
 
-  static String baseUrl = 'http://192.168.101.70:8000';
+  static String baseUrl = 'https://backed-italiano-ends-nec.trycloudflare.com';
 
   static List<String> get fallbackUrls => [
         if (cloudflareUrl.isNotEmpty) cloudflareUrl,
@@ -111,13 +111,17 @@ class ApiService {
     return false;
   }
 
-  static Future<List<dynamic>> fetchDirectUsers() async {
-    for (final host in [ApiConfig.baseUrl, ...ApiConfig.fallbackUrls]) {
+  static Future<List<dynamic>> fetchDirectUsers({int? currentUserId}) async {
+    final hosts = {ApiConfig.baseUrl, ...ApiConfig.fallbackUrls}.toList();
+    for (final host in hosts) {
       try {
+        final url = currentUserId != null
+            ? '$host/api/mobile/user-chats/users?sender_id=$currentUserId'
+            : '$host/api/mobile/user-chats/users';
         final res = await http.get(
-          Uri.parse('$host/api/mobile/user-chats/users'),
+          Uri.parse(url),
           headers: {'Accept': 'application/json'},
-        ).timeout(const Duration(seconds: 5));
+        ).timeout(const Duration(seconds: 3));
         if (res.statusCode == 200) {
           ApiConfig.baseUrl = host;
           final data = json.decode(res.body);
@@ -131,7 +135,8 @@ class ApiService {
   }
 
   static Future<List<dynamic>> fetchDirectHistory(int receiverId, {int? currentUserId}) async {
-    for (final host in [ApiConfig.baseUrl, ...ApiConfig.fallbackUrls]) {
+    final hosts = {ApiConfig.baseUrl, ...ApiConfig.fallbackUrls}.toList();
+    for (final host in hosts) {
       try {
         final url = currentUserId != null
             ? '$host/api/mobile/user-chats/$receiverId?sender_id=$currentUserId'
@@ -139,7 +144,7 @@ class ApiService {
         final res = await http.get(
           Uri.parse(url),
           headers: {'Accept': 'application/json'},
-        ).timeout(const Duration(seconds: 5));
+        ).timeout(const Duration(seconds: 3));
         if (res.statusCode == 200) {
           ApiConfig.baseUrl = host;
           final data = json.decode(res.body);
@@ -152,24 +157,44 @@ class ApiService {
     return [];
   }
 
-  static Future<bool> sendDirectMessage(int receiverId, String message, {int? senderId}) async {
-    for (final host in [ApiConfig.baseUrl, ...ApiConfig.fallbackUrls]) {
+  static Future<bool> sendDirectMessage(int receiverId, String message, {dynamic file, int? senderId}) async {
+    final hosts = {ApiConfig.baseUrl, ...ApiConfig.fallbackUrls}.toList();
+    for (final host in hosts) {
       try {
-        final res = await http.post(
-          Uri.parse('$host/api/mobile/user-chats'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: json.encode({
-            'receiver_id': receiverId,
-            'message': message,
-            if (senderId != null) 'sender_id': senderId,
-          }),
-        ).timeout(const Duration(seconds: 6));
-        if (res.statusCode == 200 || res.statusCode == 201) {
-          ApiConfig.baseUrl = host;
-          return true;
+        if (file != null) {
+          final request = http.MultipartRequest(
+            'POST',
+            Uri.parse('$host/api/mobile/user-chats?receiver_id=$receiverId&sender_id=${senderId ?? 1}'),
+          );
+          request.headers['Accept'] = 'application/json';
+          request.fields['receiver_id'] = receiverId.toString();
+          request.fields['message'] = message;
+          if (senderId != null) request.fields['sender_id'] = senderId.toString();
+          request.files.add(await http.MultipartFile.fromPath('file', file.path));
+
+          final streamedResponse = await request.send().timeout(const Duration(seconds: 12));
+          final res = await http.Response.fromStream(streamedResponse);
+          if (res.statusCode == 200 || res.statusCode == 201) {
+            ApiConfig.baseUrl = host;
+            return true;
+          }
+        } else {
+          final res = await http.post(
+            Uri.parse('$host/api/mobile/user-chats?receiver_id=$receiverId&sender_id=${senderId ?? 1}'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: json.encode({
+              'receiver_id': receiverId,
+              'message': message,
+              if (senderId != null) 'sender_id': senderId,
+            }),
+          ).timeout(const Duration(seconds: 5));
+          if (res.statusCode == 200 || res.statusCode == 201) {
+            ApiConfig.baseUrl = host;
+            return true;
+          }
         }
       } catch (e) {
         debugPrint('Error send direct message on $host: $e');

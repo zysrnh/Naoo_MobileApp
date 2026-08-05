@@ -1,5 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/api_service.dart';
+import '../services/notification_service.dart';
 import '../theme/app_theme.dart';
 
 class UserChatScreen extends StatefulWidget {
@@ -26,21 +31,64 @@ class _UserChatScreenState extends State<UserChatScreen> {
   bool _notificationsEnabled = true;
 
   String? _attachedImageName;
+  File? _attachedFile;
 
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+
+  Timer? _pollTimer;
 
   @override
   void initState() {
     super.initState();
     _loadUsers();
+    _startPolling();
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _scrollController.dispose();
     _msgController.dispose();
     super.dispose();
+  }
+
+  void _startPolling() {
+    _pollTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+      if (_selectedUser != null) {
+        _checkIncomingMessages();
+      }
+    });
+  }
+
+  Future<void> _checkIncomingMessages() async {
+    if (_selectedUser == null) return;
+    final receiverId = _selectedUser!['id'] as int;
+    final currentUserId = widget.currentUser != null ? (widget.currentUser!['id'] as int?) : 1;
+    final history = await ApiService.fetchDirectHistory(receiverId, currentUserId: currentUserId);
+
+    if (mounted && history.isNotEmpty) {
+      final lastMsgId = _messages.isNotEmpty ? (_messages.last['id'] as int?) : 0;
+      final newLastMsgId = history.last['id'] as int?;
+
+      if (newLastMsgId != lastMsgId || history.length != _messages.length) {
+        final lastMsg = Map<String, dynamic>.from(history.last);
+        final senderId = lastMsg['sender_id'] as int?;
+        if (senderId != currentUserId && _notificationsEnabled && newLastMsgId != lastMsgId) {
+          final senderName = (_selectedUser!['name'] ?? 'Pengguna').toString();
+          final textMsg = (lastMsg['message'] ?? 'Mengirim foto/lampiran').toString();
+          NotificationService.showNotification(
+            id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            title: 'Pesan Masuk dari $senderName',
+            body: textMsg,
+          );
+        }
+        setState(() {
+          _messages = history;
+        });
+        _scrollToBottom();
+      }
+    }
   }
 
   void _scrollToBottom() {
@@ -57,29 +105,63 @@ class _UserChatScreenState extends State<UserChatScreen> {
 
   Future<void> _loadUsers() async {
     setState(() => _loadingUsers = true);
-    final users = await ApiService.fetchDirectUsers();
+    final currentUserId = widget.currentUser != null ? (widget.currentUser!['id'] as int?) : 1;
+    final users = await ApiService.fetchDirectUsers(currentUserId: currentUserId);
     if (mounted) {
       setState(() {
         _userList = users;
         _loadingUsers = false;
       });
+      if (_userList.isNotEmpty && _selectedUser == null) {
+        _loadChatHistory(Map<String, dynamic>.from(_userList[0]));
+      }
     }
   }
 
-  Future<void> _loadChatHistory(Map<String, dynamic> user) async {
-    setState(() {
+  Future<void> _loadChatHistory(Map<String, dynamic> user, {bool silent = false}) async {
+    if (!silent) {
+      setState(() {
+        _selectedUser = user;
+        _loadingChat = true;
+      });
+    } else {
       _selectedUser = user;
-      _loadingChat = true;
-    });
+    }
     final receiverId = user['id'] as int;
-    final currentUserId = widget.currentUser != null ? (widget.currentUser!['id'] as int?) : null;
+    final currentUserId = widget.currentUser != null ? (widget.currentUser!['id'] as int?) : 1;
     final history = await ApiService.fetchDirectHistory(receiverId, currentUserId: currentUserId);
     if (mounted) {
       setState(() {
-        _messages = history;
+        if (history.isNotEmpty || _messages.isEmpty) {
+          _messages = history;
+        }
         _loadingChat = false;
       });
       _scrollToBottom();
+    }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final XFile? image = await picker.pickImage(source: source, imageQuality: 80);
+      if (image != null) {
+        setState(() {
+          _attachedFile = File(image.path);
+          _attachedImageName = image.name;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Foto terlampir: ${image.name}')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal membuka media: $e')),
+        );
+      }
     }
   }
 
@@ -89,46 +171,43 @@ class _UserChatScreenState extends State<UserChatScreen> {
     if (_selectedUser == null || _sending) return;
 
     final receiverId = _selectedUser!['id'] as int;
-    final currentUserId = widget.currentUser != null ? (widget.currentUser!['id'] as int?) : null;
+    final currentUserId = widget.currentUser != null ? (widget.currentUser!['id'] as int?) : 1;
 
     final sendText = _attachedImageName != null ? '[FOTO: $_attachedImageName] $text' : text;
 
     _msgController.clear();
+    final sendingFile = _attachedFile;
     setState(() {
       _sending = true;
       _messages.add({
-        'sender_id': currentUserId ?? 9999,
+        'sender_id': currentUserId ?? 1,
         'receiver_id': receiverId,
         'message': sendText,
-        'created_at': DateTime.now().toString(),
+        'created_at': DateTime.now().toIso8601String(),
       });
       _attachedImageName = null;
+      _attachedFile = null;
     });
-
     _scrollToBottom();
 
-    final ok = await ApiService.sendDirectMessage(receiverId, sendText, senderId: currentUserId);
+    final res = await ApiService.sendDirectMessage(
+      receiverId,
+      text.isNotEmpty ? text : 'Lampiran Foto',
+      file: sendingFile,
+      senderId: currentUserId,
+    );
+
     if (mounted) {
       setState(() => _sending = false);
-      if (ok && _notificationsEnabled) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            backgroundColor: widget.theme.primary,
-            behavior: SnackBarBehavior.floating,
-            content: Row(
-              children: [
-                const Icon(Icons.notifications_active_rounded, color: Color(0xFF4ADE80), size: 20),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'NOTIFIKASI SYSTEM: Pesan berhasil terkirim ke ${_selectedUser!['name']}!',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
+      if (res) {
+        if (_notificationsEnabled) {
+          NotificationService.showNotification(
+            id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+            title: 'Pesan Terkirim ke ${_selectedUser!['name']}',
+            body: sendText,
+          );
+        }
+        _loadChatHistory(_selectedUser!, silent: true);
       }
     }
   }
@@ -151,7 +230,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'LAMBIRKAN FOTO / KAMERA',
+                'LAMPIRKAN FOTO / KAMERA',
                 style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: t.primary),
               ),
               const SizedBox(height: 14),
@@ -165,10 +244,7 @@ class _UserChatScreenState extends State<UserChatScreen> {
                 subtitle: Text('Jepret foto langsung dari kamera HP', style: TextStyle(fontSize: 10, color: t.primary.withValues(alpha: 0.6))),
                 onTap: () {
                   Navigator.pop(context);
-                  setState(() => _attachedImageName = 'kamera_jepret_${DateTime.now().millisecondsSinceEpoch}.jpg');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Foto kamera terlampir! Siap dikirim.')),
-                  );
+                  _pickImage(ImageSource.camera);
                 },
               ),
               const SizedBox(height: 6),
@@ -178,14 +254,11 @@ class _UserChatScreenState extends State<UserChatScreen> {
                   decoration: BoxDecoration(color: t.accent, border: Border.all(color: t.primary, width: 2)),
                   child: Icon(Icons.photo_library_rounded, color: t.primary),
                 ),
-                title: Text('PILIH DARI GALERI HP', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: t.primary)),
-                subtitle: Text('Pilih file gambar screenshot/foto dari galeri', style: TextStyle(fontSize: 10, color: t.primary.withValues(alpha: 0.6))),
+                title: Text('PILIH DARI GALERI / FILE MANAGER', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: t.primary)),
+                subtitle: Text('Pilih foto asli dari Galeri / File Manager HP', style: TextStyle(fontSize: 10, color: t.primary.withValues(alpha: 0.6))),
                 onTap: () {
                   Navigator.pop(context);
-                  setState(() => _attachedImageName = 'foto_galeri_${DateTime.now().millisecondsSinceEpoch}.png');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Foto dari galeri terlampir! Siap dikirim.')),
-                  );
+                  _pickImage(ImageSource.gallery);
                 },
               ),
             ],
@@ -318,6 +391,66 @@ class _UserChatScreenState extends State<UserChatScreen> {
                             final targetId = _selectedUser!['id'] as int;
                             final isUserMsg = receiverId == targetId;
 
+                            final attachment = m['attachment'] as String?;
+                            final attachmentType = (m['attachment_type'] ?? '').toString();
+
+                            String displayContent = content;
+                            bool isCameraPhoto = false;
+
+                            if (content.startsWith('[FOTO:')) {
+                              isCameraPhoto = true;
+                              final closeIdx = content.indexOf(']');
+                              if (closeIdx != -1) {
+                                displayContent = content.substring(closeIdx + 1).trim();
+                              }
+                            }
+
+                            Widget? imageWidget;
+                            if (attachment != null && attachment.isNotEmpty) {
+                              if (attachment.startsWith('data:image/')) {
+                                try {
+                                  final bytes = base64Decode(attachment.split(',').last);
+                                  imageWidget = Padding(
+                                    padding: const EdgeInsets.only(bottom: 6.0),
+                                    child: ClipRRect(
+                                      borderRadius: BorderRadius.circular(4),
+                                      child: Image.memory(bytes, width: 220, height: 160, fit: BoxFit.cover),
+                                    ),
+                                  );
+                                } catch (e) {}
+                              } else if (attachmentType == 'image' || attachment.endsWith('.jpg') || attachment.endsWith('.png')) {
+                                imageWidget = Padding(
+                                  padding: const EdgeInsets.only(bottom: 6.0),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(4),
+                                    child: Image.network(ApiService.formatImageUrl(attachment), width: 220, height: 160, fit: BoxFit.cover),
+                                  ),
+                                );
+                              }
+                            }
+
+                            if (imageWidget == null && isCameraPhoto) {
+                              imageWidget = Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                margin: const EdgeInsets.only(bottom: 6),
+                                decoration: BoxDecoration(
+                                  color: t.primary.withValues(alpha: 0.1),
+                                  border: Border.all(color: t.primary, width: 1.5),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.camera_alt_rounded, color: t.primary, size: 18),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'FOTO KAMERA TERLAMPIR',
+                                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: t.primary),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+
                             return Align(
                               alignment: isUserMsg ? Alignment.centerRight : Alignment.centerLeft,
                               child: Container(
@@ -338,14 +471,16 @@ class _UserChatScreenState extends State<UserChatScreen> {
                                 child: Column(
                                   crossAxisAlignment: isUserMsg ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                                   children: [
-                                    Text(
-                                      content,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                        color: t.primary,
+                                    if (imageWidget != null) imageWidget,
+                                    if (displayContent.isNotEmpty)
+                                      Text(
+                                        displayContent,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                          color: t.primary,
+                                        ),
                                       ),
-                                    ),
                                     const SizedBox(height: 4),
                                     Text(
                                       date.length > 16 ? date.substring(0, 16) : date,
